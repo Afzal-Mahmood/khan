@@ -1,99 +1,115 @@
-// module = require('./calculater.js')
-// let y = 280;
-// let x = 120
-// console.log("sum",x+y)
-// let a = module.add(450 , 50)
-// let b = module.sub(450 , 50)
-// let c = module.Multi(450 , 50)
-// let e = module.divi(450 , 50)
-// console.log("Add:",a , "Sub :",b ,"Multiflication",c ,"Divided",e)
+const express = require('express');
+const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 
+const app = express();
+const port = 4000;
 
+// Middleware to parse incoming request bodies
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
-                //--day 2
-// const http = require('http')
-// const url = require('url')
-// const port = 8000
-// const server = http.createServer((req , res) =>{
-//     console.log('requst a server')
-//     let myUrl = url.parse(req.url,true)
-//     if(myUrl.pathname === '/home'){
-//         res.render.end('/Home.html')
-//     }else if(myUrl.pathname === '/about'){
-//         res.end("ABOUT PAGE")
-//     }else  if(myUrl.pathname === '/content'){
-//         res.end("CONTENT PAGE")
-//     }else {
-//         res.writeHead( { 'Content-Type': 'text/plain' });
-//         res.end("404 - PAGE NOT FOUND");
-//     }
+// MongoDB connection URI (adjust as needed)
+const mongoURI = 'mongodb://localhost:27017/blue';
 
-// })
-// server.listen(port , (e) => console.log(`server is runing on port ${port}`))
+// Connect to MongoDB
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch((err) => console.error('MongoDB connection error:', err));
 
+// Define Mongoose Schema and Model
+const userSchema = new mongoose.Schema({
+    first_name: { type: String, required: true },
+    last_name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    created_at: { type: Date, default: Date.now },
+});
 
+const User = mongoose.model('User', userSchema);
 
-const express = require('express')
-const app = express()
-const users = require('./user.json')
-const url = require('url')
-const port = 3040
-const fs =require ('fs')
-app.use(express.urlencoded({extended: false }))
+// Routes
 
-          app.get('/',function (req , res){
-              return res.sendFile(__dirname + '/Home.html')
-          }) 
-          app.get('/about',function (req,res){
-            return res.sendFile(__dirname +'/about.html')
-          })
+// Serve static HTML pages
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '/Home.html'));
+});
 
-          app.get('/api/users',( req, res  ) =>{
-                return res.json(users)
-          })
-          
-          app.get('/gellery',function (req,res){
-              res.send('GAllER PAGE HELLO !')
-              
-          })
-          app.get('/users',(req , res) =>{
-            const html =`
+app.get('/about', (req, res) => {
+    res.sendFile(path.join(__dirname, '/about.html'));
+});
+
+// Get all users
+app.get('/api/users', async (req, res) => {
+    try {
+        const users = await User.find();
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+// Add a new user
+app.post('/api/users', async (req, res) => {
+    const { first_name, last_name, email } = req.body;
+
+    try {
+        const newUser = new User({ first_name, last_name, email });
+        await newUser.save();
+        res.status(201).json({ message: 'User created successfully', user: newUser });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
+// Get a single user by ID
+app.get('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch user' });
+    }
+});
+
+// Update a user by ID (not implemented in full, just a placeholder)
+app.put('/api/users/:id', (req, res) => {
+    res.json({ status: 'pending' });
+});
+
+// Delete a user by ID (not implemented in full, just a placeholder)
+app.delete('/api/users/:id', (req, res) => {
+    res.json({ status: 'pending' });
+});
+
+// Render user list dynamically
+app.get('/users', async (req, res) => {
+    try {
+        const users = await User.find();
+        const html = `
             <ul>
-                ${users.map((user) => `<li>${user.first_name}</li>`).join('')}
+                ${users.map((user) => `<li>${user.first_name} ${user.last_name}</li>`).join('')}
             </ul>
-            `
-            res.send(html)
-          })
-          app
-          .route('/api/users')
-          .put((req , res) => {
-            return res.json({status:"pending"})
-          })
-          .post((req , res) => {
-            const body= req.body
-            users.push({...body,id :users.length + 1})
-            fs.writeFile('./user.json',JSON.stringify(users),(err,data)=>{
-              return res.json({status:"success", id: users.length + 1})
-            })
-          })
-          .delete((req , res) => {
-            return res.json({status:"pending"})
-          })
+        `;
+        res.send(html);
+    } catch (err) {
+        res.status(500).send('Error loading users.');
+    }
+});
 
-         
-          app.get("/api/users/:id" , (req , res) =>{
-            const id = Number ( req.params.id );
-            const user = users.find (user => user.id === id)
-            return res.json(user)
-          })
-          
-          app.get('/content',function (res , req){
-              res.send('CONTENT PAGE HELLO !')
-          })
-          
-          app.get('/page',function (res , req){
-              res.send('PAGE HELLO !')
-          })
+// Placeholder routes for additional pages
+app.get('/gallery', (req, res) => {
+    res.send('Gallery Page!');
+});
 
+app.get('/content', (req, res) => {
+    res.send('Content Page!');
+});
 
- app.listen(port , (e) => console.log(`server is runing on port ${port}`))
+app.get('/page', (req, res) => {
+    res.send('Page!');
+});
+
+// Start the server
+app.listen(port, () => console.log(`Server is running on port ${port}`));
